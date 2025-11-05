@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.db
+uploads/
+results/
+databases/
+venv/
+.env
+*.xlsx
+!templates/
+!static/
+.DS_Store
