@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Калькулятор цен OZON FBO</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 36px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .section {
+            margin-bottom: 30px;
+        }
+
+        .section h2 {
+            font-size: 22px;
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #555;
+        }
+
+        input[type="file"],
+        input[type="number"] {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            width: 100%;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            display: none;
+        }
+
+        .status.loading {
+            display: block;
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            color: #856404;
+        }
+
+        .status.success {
+            display: block;
+            background: #d4edda;
+            border: 1px solid #28a745;
+            color: #155724;
+        }
+
+        .status.error {
+            display: block;
+            background: #f8d7da;
+            border: 1px solid #dc3545;
+            color: #721c24;
+        }
+
+        .download-btn {
+            background: #28a745;
+            margin-top: 10px;
+        }
+
+        .download-btn:hover {
+            box-shadow: 0 10px 20px rgba(40, 167, 69, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Калькулятор цен OZON FBO</h1>
+            <p>Подбор оптимальных цен с учётом целевой рентабельности</p>
+        </div>
+
+        <div class="content">
+            <div class="section">
+                <h2>1. Загрузите файл с товарами</h2>
+                <div class="form-group">
+                    <label for="file">Excel файл (.xlsx):</label>
+                    <input type="file" id="file" accept=".xlsx" required>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>2. Укажите целевую рентабельность</h2>
+                <div class="form-group">
+                    <label for="margin">Рентабельность (%):</label>
+                    <input type="number" id="margin" value="20" min="0" max="100" step="0.1" required>
+                </div>
+            </div>
+
+            <button class="btn" id="calculateBtn" onclick="calculate()">
+                🚀 Рассчитать цены
+            </button>
+
+            <div class="status" id="status"></div>
+        </div>
+    </div>
+
+    <script>
+        async function calculate() {
+            const fileInput = document.getElementById('file');
+            const marginInput = document.getElementById('margin');
+            const statusDiv = document.getElementById('status');
+            const btn = document.getElementById('calculateBtn');
+
+            // Проверка
+            if (!fileInput.files.length) {
+                showStatus('error', 'Выберите файл!');
+                return;
+            }
+
+            // Отключаем кнопку
+            btn.disabled = true;
+            btn.textContent = '⏳ Расчёт...';
+
+            // Показываем загрузку
+            showStatus('loading', '🔄 Расчёт в процессе, пожалуйста подождите...');
+
+            // Формируем данные
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('target_margin', marginInput.value);
+
+            try {
+                const response = await fetch('/api/calculate', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    showStatus('success',
+                        `✅ Расчёт завершён успешно!<br><br>` +
+                        `<button class="btn download-btn" onclick="download('${result.result_file}')">` +
+                        `📥 Скачать результат</button>`
+                    );
+                } else {
+                    showStatus('error', `❌ Ошибка: ${result.message}`);
+                }
+            } catch (error) {
+                showStatus('error', `❌ Ошибка подключения: ${error.message}`);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🚀 Рассчитать цены';
+            }
+        }
+
+        function showStatus(type, message) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.className = 'status ' + type;
+            statusDiv.innerHTML = message;
+        }
+
+        function download(filename) {
+            window.location.href = '/api/download/' + filename;
+        }
+    </script>
+</body>
+</html>
