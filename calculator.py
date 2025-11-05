@@ -36,7 +36,15 @@ from typing import Optional
 
 # ============== КОНСТАНТЫ ==============
 
-SERVER = "http://localhost:5000"
+import os
+
+# Определяем SERVER в зависимости от окружения
+if os.environ.get('RENDER'):
+    # В облаке Render используем текущий домен
+    SERVER = os.environ.get('RENDER_EXTERNAL_URL', 'https://ozon-fbo-calculator.onrender.com')
+else:
+    # Локально используем localhost
+    SERVER = "http://localhost:5000"
 # Адрес сервера (localhost = текущий компьютер, порт 5000)
 
 API_DB_LIST = f"{SERVER}/api/databases"
