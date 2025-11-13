@@ -13,112 +13,38 @@ calculator.py - Калькулятор цен OZON FBO
 - os: работа с файловой системой
 """
 
-# ============== ИМПОРТЫ ==============
-
 import requests
-# requests - библиотека для HTTP запросов (GET, POST)
-# Используется для получения данных из БД через API сервера
-
 import pandas as pd
-# pandas - мощная библиотека для работы с табличными данными
-# Используется для чтения/записи Excel файлов и операций с DataFrames
-
 import math
-# math - встроенная библиотека математических функций
-# ceil() - округляет вверх (1.1 -> 2, используется для расчёта объёма коробки)
-
 import os
-# os - работа с файловой системой
-
 from typing import Optional
 
-# Optional - аннотация типов (указывает что параметр может быть None)
-
-# ============== КОНСТАНТЫ ==============
-
-import os
-
-# Определяем SERVER в зависимости от окружения
-if os.environ.get('RENDER'):
-    # В облаке Render используем текущий домен
-    SERVER = "http://89.111.163.171"
-else:
-    # Локально используем localhost
-    SERVER = "http://localhost:5000"
-# Адрес сервера (localhost = текущий компьютер, порт 5000)
+# URL вашего VPS
+SERVER = "http://89.111.163.171"
 
 API_DB_LIST = f"{SERVER}/api/databases"
-# Эндпоинт для получения списка БД
-
 API_GET = lambda db, table: f"{SERVER}/api/get_data/{db}/{table}"
 
-
-# Функция для формирования URL эндпоинта получения данных
-# Пример использования: API_GET("ozon_data.db", "catalog")
-
-
-# ============== КЛАСС REMOTEREFTABLES ==============
-
 class RemoteRefTables:
-    """
-    НАЗНАЧЕНИЕ: Загрузить справочные таблицы из БД (Catalog, Logistics, New Tariffs)
-
-    ТАБЛИЦЫ:
-    - catalog: информация о категориях, типах товаров и комиссиях
-    - logistics: тарифы на доставку в зависимости от объёма
-    - new_tariffs: параметры обработки и дополнительные сборы
-    """
-
     def __init__(self, db_name: str):
-        """
-        КОНСТРУКТОР: Инициализирует класс и загружает все таблицы из БД
-
-        ПАРАМЕТРЫ:
-        - db_name: Имя БД файла на сервере (например, "ozon_data.db")
-        """
         self.db_name = db_name
-
-        # Загружаем каждую таблицу из БД через API
         self.catalog = self._load_table("catalog")
         self.logistics = self._load_table("logistics")
         self.new_tariffs = self._load_table("new_tariffs")
 
     def _load_table(self, table_name: str) -> pd.DataFrame:
-        """
-        МЕТОД: Загрузить таблицу из БД через API
-
-        ПАРАМЕТРЫ:
-        - table_name: Имя таблицы ("catalog", "logistics", и т.д.)
-
-        ЛОГИКА:
-        1. Отправляет GET запрос к API сервера
-        2. Получает JSON с данными
-        3. Преобразует в pandas DataFrame
-        4. Если таблица не найдена - пробует альтернативные имена
-        5. Если всё равно не найдена - возвращает пустой DataFrame
-
-        ВОЗВРАЩАЕТ: pandas DataFrame с данными таблицы
-        """
         try:
-            # Формируем URL и отправляем GET запрос
             r = requests.get(API_GET(self.db_name, table_name))
-            r.raise_for_status()  # Проверка на ошибки HTTP
-
-            # Получаем JSON из ответа и извлекаем поле "data"
+            r.raise_for_status()
             data = r.json().get("data", [])
-
-            # Преобразуем список словарей в DataFrame
             return pd.DataFrame(data)
         except Exception:
-            # Если первая попытка не сработала, пробуем альтернативные имена
             alt_names = [
-                table_name,  # "catalog"
-                table_name.capitalize(),  # "Catalog"
-                table_name.replace("_", " "),  # "new tariffs"
-                table_name.replace("_", " ").capitalize()  # "New tariffs"
+                table_name,
+                table_name.capitalize(),
+                table_name.replace("_", " "),
+                table_name.replace("_", " ").capitalize()
             ]
-
-            # Перебираем альтернативные имена
             for alt in alt_names:
                 try:
                     r = requests.get(API_GET(self.db_name, alt))
@@ -126,222 +52,99 @@ class RemoteRefTables:
                     data = r.json().get("data", [])
                     return pd.DataFrame(data)
                 except:
-                    pass  # Если эта попытка не сработала - пробуем следующую
-
-        # Если всё не сработало - возвращаем пустой DataFrame
-        return pd.DataFrame()
-
-
-# ============== СЛУЖЕБНЫЕ ФУНКЦИИ ==============
+                    continue
+            return pd.DataFrame()
 
 def get_latest_db() -> str:
-    """
-    ФУНКЦИЯ: Получить имя последней (самой новой) БД на сервере
-
-    ЛОГИКА:
-    1. Отправляет GET запрос к API для получения списка БД
-    2. Сортирует БД по убыванию (от новых к старым)
-    3. Возвращает первый (самый новый) файл
-
-    ВОЗВРАЩАЕТ: Имя БД файла (строка)
-    """
-    # Получаем список всех БД с сервера
     r = requests.get(API_DB_LIST)
     r.raise_for_status()
     dbs = r.json().get("databases", [])
-
     if not dbs:
         raise RuntimeError("Нет БД на сервере")
-
-    # Сортируем в обратном порядке (новые в начале)
     sorted_dbs = sorted(dbs, reverse=True)
-
-    # Берём первую (самую новую)
     latest_db = sorted_dbs[0]
     print(f"БД: {latest_db} (из {len(dbs)})")
-
     return latest_db
 
-
 def normalize_percent(val):
-    """
-    ФУНКЦИЯ: Нормализировать процентное значение в десятичную дробь
-
-    НАЗНАЧЕНИЕ:
-    - Преобразует 30% в 0.30
-    - Преобразует "30%" в 0.30
-    - Преобразует 0.30 в 0.30
-    - Если значение > 1, разделяет на 100
-
-    ПАРАМЕТРЫ:
-    - val: Значение в любом формате (int, float, str, None)
-
-    ВОЗВРАЩАЕТ: Десятичная дробь (0.0 - 1.0)
-    """
     if val is None:
         return 0.0
-
     try:
         if isinstance(val, str):
-            # Удаляем символ % и пробелы, заменяем запятую на точку
             s = val.replace("%", "").replace(",", ".").strip()
             num = float(s)
-            # Если число > 1, это проценты (разделяем на 100)
             return num / 100.0 if num > 1 else num
         else:
-            # Преобразуем в float
             num = float(val)
             return num / 100.0 if num > 1 else num
     except:
         return 0.0
 
-
 def vlookup_approx(value, table_df: pd.DataFrame, ret_col_index=1):
-    """
-    ФУНКЦИЯ: Приблизительный поиск значения в таблице (как VLOOKUP в Excel)
-
-    НАЗНАЧЕНИЕ:
-    Ищет наибольшее значение в первой колонке, которое <= value
-    и возвращает соответствующее значение из другой колонки
-
-    ПРИМЕР:
-    Таблица логистики: Объём | Цена
-                       0.5  | 10
-                       1.0  | 15
-                       2.0  | 20
-    value = 1.5 -> возвращает 15 (потому что 1.0 <= 1.5)
-
-    ПАРАМЕТРЫ:
-    - value: Значение для поиска
-    - table_df: DataFrame с данными
-    - ret_col_index: Индекс колонки для возврата (0, 1, 2, и т.д.)
-
-    ВОЗВРАЩАЕТ: Найденное значение или None
-    """
     if table_df is None or table_df.empty:
         return None
-
     try:
-        # Получаем первую колонку и преобразуем в числа
         keys = pd.to_numeric(table_df.iloc[:, 0], errors='coerce')
-
-        # Получаем нужную колонку для возврата
         vals = table_df.iloc[:, ret_col_index]
-
-        # Отбираем только строки где первая колонка - число (не NaN)
         mask = ~keys.isna()
         if not mask.any():
             return None
-
-        # Создаём новый DataFrame с парами ключ-значение
         df = pd.DataFrame({"k": keys[mask].astype(float).values,
                            "v": vals[mask].values})
-
-        # Сортируем по ключам
         df = df.sort_values("k")
-
-        # Ищем все значения где ключ <= value
         le = df[df["k"] <= float(value)]
-
-        # Возвращаем последнее (наибольшее) значение
         return le.iloc[-1]["v"] if not le.empty else None
     except:
         return None
 
-
-# ============== ДВУХУРОВНЕВЫЙ ПОИСК В CATALOG ==============
-
 def two_level_catalog_lookup(catalog_df: pd.DataFrame, category, product_type, return_col_letter, debug=False):
-    """
-    ФУНКЦИЯ: Двухуровневый поиск в таблице Catalog
-
-    НАЗНАЧЕНИЕ:
-    Ищет комиссию для конкретного товара:
-    1. Сначала фильтрует по Категории (колонка B)
-    2. Потом ищет Тип товара (колонка C) в отфильтрованных строках
-    3. Возвращает комиссию из нужной колонки (D/E/F/G/H в зависимости от цены)
-
-    ПАРАМЕТРЫ:
-    - catalog_df: DataFrame таблицы Catalog из БД
-    - category: Название категории (например, "Инструменты для ремонта")
-    - product_type: Тип товара (например, "Резец токарный")
-    - return_col_letter: Буква колонки для возврата (D, E, F, G, H)
-    - debug: Выводить ли отладочную информацию
-
-    ВОЗВРАЩАЕТ: Значение комиссии (например, 0.33) или None если не найдено
-    """
     if catalog_df is None or catalog_df.empty:
         if debug:
             print(f"        Таблица Catalog пуста")
         return None
-
     try:
         if debug:
             print(f"        Шаг 1: Фильтр по категории '{category}' в колонке B")
-
-        # ВАЖНО: Используем имена колонок, а не индексы!
-        # Это избегает проблем с переупорядочиванием колонок при загрузке из БД
         if 'B' not in catalog_df.columns or 'C' not in catalog_df.columns:
             if debug:
                 print(f"        Ошибка: Колонки B или C отсутствуют!")
                 print(f"        Доступные: {list(catalog_df.columns)}")
             return None
-
-        # Шаг 1: Фильтруем по Категории (колонка B = блок категорий)
         col_category = catalog_df['B']
-
         if debug:
             print(f"        Первые значения колонки B: {col_category.head(3).tolist()}")
-
-        # Ищем точное совпадение категории
         category_matches = catalog_df[col_category == category]
-
-        # Если точное совпадение не найдено, ищем без учёта регистра
         if category_matches.empty:
             mask = col_category.astype(str).str.strip().str.lower() == str(category).strip().lower()
             category_matches = catalog_df[mask]
-
         if category_matches.empty:
             if debug:
                 print(f"        Ошибка: Категория '{category}' не найдена в колонке B")
             return None
-
         if debug:
             print(f"        OK: Найдено {len(category_matches)} строк")
             print(f"        Шаг 2: Поиск типа '{product_type}' в колонке C")
-
-        # Шаг 2: В отфильтрованных строках ищем Тип товара (колонка C)
         col_product_type = category_matches['C']
         final_matches = category_matches[col_product_type == product_type]
-
-        # Если точное совпадение не найдено, ищем без учёта регистра
         if final_matches.empty:
             mask = col_product_type.astype(str).str.strip().str.lower() == str(product_type).strip().lower()
             final_matches = category_matches[mask]
-
         if final_matches.empty:
             if debug:
                 print(f"        Ошибка: Тип товара '{product_type}' не найден")
             return None
-
-        # Шаг 3: Возвращаем значение из нужной колонки
         if return_col_letter not in final_matches.columns:
             if debug:
                 print(f"        Ошибка: Колонка {return_col_letter} не найдена!")
             return None
-
         result = final_matches[return_col_letter].iloc[0]
-
         if debug:
             print(f"        OK: Найдено значение {result}")
-
         return result
-
     except Exception as e:
         if debug:
             print(f"        Ошибка: {e}")
         return None
-
 
 # ============== КЛАСС OZONPRICEFINDER ==============
 
