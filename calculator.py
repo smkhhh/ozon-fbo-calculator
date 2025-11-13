@@ -41,7 +41,7 @@ import os
 # Определяем SERVER в зависимости от окружения
 if os.environ.get('RENDER'):
     # В облаке Render используем текущий домен
-    SERVER = os.environ.get('RENDER_EXTERNAL_URL', 'https://ozon-fbo-calculator.onrender.com')
+    SERVER = "http://89.111.163.171"
 else:
     # Локально используем localhost
     SERVER = "http://localhost:5000"
