@@ -16,13 +16,18 @@ login_manager.login_view = 'auth.login'
 
 app.register_blueprint(auth_bp, url_prefix='/auth')
 
+
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-@app.before_first_request
-def create_tables():
+
+# ====== ЭТО ВАЖНО! ==========================================================
+# Делайте инициализацию БД здесь -- при каждом запуске gunicorn:
+with app.app_context():
     db.create_all()
+# ============================================================================
+
 
 @app.route('/')
 @login_required
@@ -42,6 +47,3 @@ def calculate():
         except Exception as e:
             return f"Ошибка: {e}"
     return render_template('calculate.html')
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
