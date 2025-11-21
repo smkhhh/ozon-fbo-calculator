@@ -32,7 +32,7 @@ with app.app_context():
 @app.route('/')
 @login_required
 def index():
-    return f"Добро пожаловать, {current_user.username}!"
+    return render_template('index.html', username=current_user.username)
 
 @app.route('/calculate', methods=['GET', 'POST'])
 @login_required
@@ -43,7 +43,7 @@ def calculate():
         pf = OzonPriceFinder()
         try:
             result_df = pf.calculate_file(excel_path, target_margin_pct=target_margin)
-            return render_template('results.html', tables=[result_df.to_html(classes='data')], titles=result_df.columns.values)
+            return render_template('results.html', tables=[result_df.to_html(classes='data')], titles=result_df.columns.values, username=current_user.username)
         except Exception as e:
             return f"Ошибка: {e}"
-    return render_template('calculate.html')
+    return render_template('index.html', username=current_user.username)
