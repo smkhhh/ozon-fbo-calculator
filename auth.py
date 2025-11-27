@@ -24,7 +24,7 @@ def register():
             db.session.add(new_user)
             db.session.commit()
             flash('Регистрация прошла успешно')
-            return redirect(url_for('auth.login'))
+            return redirect(url_for('login'))
     return render_template('register.html')
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
@@ -35,7 +35,7 @@ def login():
         user = User.query.filter_by(username=username).first()
         if user and check_password_hash(user.password_hash, password):
             login_user(user)
-            return redirect(url_for('main.index'))
+            return redirect(url_for('index'))
         else:
             flash('Неверный логин или пароль')
     return render_template('login.html')
@@ -45,4 +45,4 @@ def login():
 def logout():
     logout_user()
     flash('Вы вышли из системы')
-    return redirect(url_for('auth.login'))
+    return redirect(url_for('login'))
